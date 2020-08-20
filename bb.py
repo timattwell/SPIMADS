@@ -1,3 +1,7 @@
+'''
+Script to parameterise CAD model and call STAR CCM+ in series or parallel.
+Parses star output .csv-s and returns the results
+'''
 import subprocess
 import os
 import time
@@ -7,7 +11,10 @@ import numpy as np
 
 def bb(x0=0, x1=0, x2=1, x3=-1, x4=0):
     #os.system("sh loadstar.sh")
+    # Timer for monitoring purposes
     start_time = time.time()
+
+    # Adjusts normalised optimiser locations to the model parameter bounds
     x0 = (x0+1)*10  #(0,20)
     x1 = (x1+1.2)*10   #(2,22)
     x2 = (x2+1)*1.5   #(0,3)
@@ -18,9 +25,11 @@ def bb(x0=0, x1=0, x2=1, x3=-1, x4=0):
     print(len(x2))
     print(len(x3))
     print(len(x4))
+
+    # Places paramers into sample lists for each simulation
     samples = []
     for ii in range(len(x0)):
-        samples.append([list(x0)[ii],list(x1)[ii],list(x2)[ii],list(x3)[ii],list(x4)[ii]])
+        samples.append([list(x0)[ii], list(x1)[ii], list(x2)[ii], list(x3)[ii], list(x4)[ii]])
     # length, pitch length, amplitude, offset distance, total angle
     print(samples)
     cmd1 = "./macro.sh"
@@ -39,7 +48,9 @@ def bb(x0=0, x1=0, x2=1, x3=-1, x4=0):
     else:
         max_processes = 1
         bracket = 8
-
+    '''
+    Creates .csv files defining geometry and fills in STAR CCM+ .java macro template files
+    '''
     n = 0
     print("Creating geometry definitions and STAR CCM+ macros.")
     for vector in samples:
@@ -57,6 +68,10 @@ def bb(x0=0, x1=0, x2=1, x3=-1, x4=0):
             p.wait()
     print("Geo. def. and macros complete.")
 
+    '''
+    Runs simulations with a certain number of assigned processors, in 
+    this case 64 cores split over 8 NUMA nodes.
+    '''
     print("Beginning simulations.")
     processes = set()
     simtime = []
@@ -78,13 +93,16 @@ def bb(x0=0, x1=0, x2=1, x3=-1, x4=0):
         nodesfree.add(n)
         c=c+1
         
-
     #Check if all the child processes were closed
     for p in processes:
         if p.poll() is None:
             p.wait()
             print("--- Sim "+str(n)+" done in %s seconds ---" % (time.time() - start_time))
 
+    '''
+    Reads output .csv-s from STAR, finds the maximum value, and returns 
+    a list containing result for each input
+    '''
     results=list()
     for ii in range(len(samples)):
         data = pandas.read_csv("./tmp/out/CostFuncDat"+str(ii)+".csv", header=0)
